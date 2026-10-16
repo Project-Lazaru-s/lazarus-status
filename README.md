@@ -1,6 +1,6 @@
 # Lazarus Status
 
-Forge 1.20.1 mod for Project Lazarus. A small **S** button beside the player inventory opens a private status screen. No status overlay appears during play.
+Forge 1.20.1 mod for Project Lazarus. A small survivor portrait button beside the other inventory actions opens a private status screen. No status overlay appears during play.
 
 The server stores statistics per player:
 
@@ -10,4 +10,4 @@ The server stores statistics per player:
 
 Death resets the two personal counters. Traveling to the End does not. Existing worlds start each player's personal run on their first login with this mod; historical kills and survival days cannot be reconstructed.
 
-Build with Java 17 using `gradlew.bat build`. Install the resulting `build/libs/lazarusstatus-1.0.0.jar` on both server and clients. This mod does not require Lazarus Moodles.
+Build with Java 17 using `gradlew.bat build`. Install the resulting JAR from `build/libs` on both server and clients. Remove the previous version before installing an update. This mod does not require Lazarus Moodles.

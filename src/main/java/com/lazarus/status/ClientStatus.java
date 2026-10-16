@@ -7,6 +7,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -14,6 +15,9 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = LazarusStatus.ID, value = Dist.CLIENT)
 public final class ClientStatus {
+    private static final ResourceLocation ICON = new ResourceLocation(
+            LazarusStatus.ID, "textures/gui/survivor_status.png");
+
     private ClientStatus() { }
 
     @SubscribeEvent
@@ -21,9 +25,17 @@ public final class ClientStatus {
         if (!(event.getScreen() instanceof InventoryScreen)) return;
         int left = (event.getScreen().width - 176) / 2;
         int top = (event.getScreen().height - 166) / 2;
-        event.addListener(Button.builder(Component.literal("S"), button -> LazarusStatus.request())
-                .bounds(left + 178, top + 5, 20, 20)
+        event.addListener(Button.builder(Component.empty(), button -> LazarusStatus.request())
+                .bounds(left + 147, top + 61, 18, 18)
                 .tooltip(Tooltip.create(Component.literal("Survivor status"))).build());
+    }
+
+    @SubscribeEvent
+    public static void renderInventoryIcon(ScreenEvent.Render.Post event) {
+        if (!(event.getScreen() instanceof InventoryScreen)) return;
+        int left = (event.getScreen().width - 176) / 2;
+        int top = (event.getScreen().height - 166) / 2;
+        event.getGuiGraphics().blit(ICON, left + 148, top + 62, 0, 0, 16, 16, 16, 16);
     }
 
     public static void open(LazarusStatus.Snapshot snapshot) {
