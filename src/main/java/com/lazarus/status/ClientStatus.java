@@ -17,6 +17,8 @@ import net.minecraftforge.fml.common.Mod;
 public final class ClientStatus {
     private static final ResourceLocation ICON = new ResourceLocation(
             LazarusStatus.ID, "textures/gui/survivor_status.png");
+    private static final ResourceLocation PANEL = new ResourceLocation(
+            LazarusStatus.ID, "textures/gui/survivor_record.png");
 
     private ClientStatus() { }
 
@@ -46,25 +48,63 @@ public final class ClientStatus {
         private final LazarusStatus.Snapshot stats;
 
         private StatusScreen(LazarusStatus.Snapshot stats) {
-            super(Component.literal("Lazarus Status"));
+            super(Component.literal("Survivor Record"));
             this.stats = stats;
+        }
+
+        @Override
+        protected void init() {
+            int left = (width - 256) / 2;
+            int top = (height - 202) / 2;
+            addRenderableWidget(Button.builder(Component.literal("Back"), button -> returnToInventory())
+                    .bounds(left + 202, top + 8, 42, 16).build());
+        }
+
+        private void returnToInventory() {
+            if (minecraft != null && minecraft.player != null)
+                minecraft.setScreen(new InventoryScreen(minecraft.player));
+        }
+
+        @Override
+        public void onClose() {
+            returnToInventory();
         }
 
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
             renderBackground(graphics);
-            int left = (width - 220) / 2;
-            int top = (height - 110) / 2;
-            graphics.fill(left, top, left + 220, top + 110, 0xD9121719);
-            graphics.fill(left, top, left + 220, top + 2, 0xFFAE442D);
-            graphics.drawCenteredString(font, title, width / 2, top + 12, 0xFFE2DCCF);
-            graphics.drawString(font, "World Day", left + 16, top + 39, 0xFFB7B4AC);
-            graphics.drawString(font, Long.toString(stats.worldDay()), left + 178, top + 39, 0xFFFFFFFF);
-            graphics.drawString(font, "Days Survived", left + 16, top + 61, 0xFFB7B4AC);
-            graphics.drawString(font, Long.toString(stats.daysSurvived()), left + 178, top + 61, 0xFFFFFFFF);
-            graphics.drawString(font, "Zombies Killed", left + 16, top + 83, 0xFFB7B4AC);
-            graphics.drawString(font, Integer.toString(stats.zombieKills()), left + 178, top + 83, 0xFFFFFFFF);
+            int left = (width - 256) / 2;
+            int top = (height - 202) / 2;
+            graphics.blit(PANEL, left, top, 0, 0, 256, 202, 256, 202);
+            graphics.drawString(font, "LAZARUS / SURVIVOR RECORD", left + 16, top + 12, 0xFFE4D9C8);
+
+            graphics.fill(left + 16, top + 31, left + 50, top + 65, 0xFF101714);
+            graphics.pose().pushPose();
+            graphics.pose().translate(left + 17, top + 32, 0);
+            graphics.pose().scale(2, 2, 1);
+            graphics.blit(ICON, 0, 0, 0, 0, 16, 16, 16, 16);
+            graphics.pose().popPose();
+            String playerName = minecraft != null && minecraft.player != null
+                    ? minecraft.player.getName().getString() : "Survivor";
+            graphics.drawString(font, playerName, left + 60, top + 39, 0xFFF4ECE0);
+            graphics.drawString(font, "WORLD DAY  " + stats.worldDay(), left + 60, top + 54, 0xFFB9A995);
+
+            graphics.fill(left + 17, top + 72, left + 239, top + 73, 0xFF7B473A);
+            graphics.drawString(font, "CURRENT RUN", left + 20, top + 78, 0xFFD4A185);
+            row(graphics, left, top + 96, "Days survived", StatusClock.display(stats.survivalTicks()));
+            row(graphics, left, top + 113, "Zombies killed", Integer.toString(stats.zombieKills()));
+
+            graphics.fill(left + 17, top + 133, left + 239, top + 134, 0xFF7B473A);
+            graphics.drawString(font, "PERSONAL RECORD", left + 20, top + 140, 0xFFD4A185);
+            row(graphics, left, top + 158, "Longest run", StatusClock.display(stats.longestRunTicks()));
+            row(graphics, left, top + 174, "Total zombies killed", Integer.toString(stats.totalKills()));
+            row(graphics, left, top + 190, "Deaths", Integer.toString(stats.deaths()));
             super.render(graphics, mouseX, mouseY, partialTick);
+        }
+
+        private void row(GuiGraphics graphics, int left, int y, String label, String value) {
+            graphics.drawString(font, label, left + 20, y, 0xFFD1CEC3);
+            graphics.drawString(font, value, left + 235 - font.width(value), y, 0xFFFFFFFF);
         }
 
         @Override

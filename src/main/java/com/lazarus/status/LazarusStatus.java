@@ -10,6 +10,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.DistExecutor;
@@ -28,7 +29,7 @@ public class LazarusStatus {
     public static final String ID = "lazarusstatus";
     private static final String TAG = "LazarusStatus";
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(ID, "main"), () -> "1", "1"::equals, "1"::equals);
+            new ResourceLocation(ID, "main"), () -> "2", "2"::equals, "2"::equals);
 
     public LazarusStatus() {
         CHANNEL.registerMessage(0, Request.class, Request::encode, Request::decode, Request::handle,
@@ -42,35 +43,74 @@ public class LazarusStatus {
         CHANNEL.sendToServer(new Request());
     }
 
+    private static long worldTime(ServerPlayer player) {
+        return Math.max(0, player.server.overworld().getDayTime());
+    }
+
     private static long worldDay(ServerPlayer player) {
-        return Math.max(0, player.server.overworld().getDayTime() / 24000L);
+        return worldTime(player) / StatusClock.DAY_TICKS;
     }
 
     private static CompoundTag stats(ServerPlayer player) {
         CompoundTag root = player.getPersistentData();
         if (!root.contains(TAG)) {
             CompoundTag data = new CompoundTag();
-            data.putLong("startDay", worldDay(player));
+            data.putLong("aliveTicks", 0);
+            data.putLong("lastWorldTime", worldTime(player));
             root.put(TAG, data);
         }
-        return root.getCompound(TAG);
+        CompoundTag data = root.getCompound(TAG);
+        if (!data.contains("aliveTicks")) {
+            // Existing 1.0.x runs retain completed days; earlier fractional hours cannot be recovered.
+            data.putLong("aliveTicks", data.contains("startDay")
+                    ? StatusClock.restoreDays(worldDay(player), data.getLong("startDay")) : 0);
+            data.putLong("lastWorldTime", worldTime(player));
+        }
+        if (!data.contains("totalKills")) data.putInt("totalKills", data.getInt("zombieKills"));
+        if (!data.contains("longestRun")) data.putLong("longestRun", data.getLong("aliveTicks"));
+        return data;
+    }
+
+    private static void accrue(ServerPlayer player) {
+        CompoundTag data = stats(player);
+        long now = worldTime(player);
+        long previous = data.getLong("lastWorldTime");
+        data.putLong("aliveTicks", StatusClock.advance(data.getLong("aliveTicks"), previous, now,
+                !player.isCreative() && !player.isSpectator()));
+        data.putLong("lastWorldTime", now);
     }
 
     @SubscribeEvent
     public void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) stats(player);
+        if (event.getEntity() instanceof ServerPlayer player)
+            stats(player).putLong("lastWorldTime", worldTime(player));
+    }
+
+    @SubscribeEvent
+    public void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) accrue(player);
+    }
+
+    @SubscribeEvent
+    public void onPlayerTick(TickEvent.PlayerTickEvent event) {
+        if (event.phase == TickEvent.Phase.END && event.player instanceof ServerPlayer player
+                && player.tickCount % 20 == 0) accrue(player);
     }
 
     @SubscribeEvent
     public void onClone(PlayerEvent.Clone event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (!(event.getOriginal() instanceof ServerPlayer oldPlayer)) return;
+        accrue(oldPlayer);
+        CompoundTag data = stats(oldPlayer).copy();
         if (event.isWasDeath()) {
-            CompoundTag data = new CompoundTag();
-            data.putLong("startDay", worldDay(player));
-            player.getPersistentData().put(TAG, data);
-        } else if (event.getOriginal().getPersistentData().contains(TAG)) {
-            player.getPersistentData().put(TAG, event.getOriginal().getPersistentData().getCompound(TAG).copy());
+            data.putLong("longestRun", Math.max(data.getLong("longestRun"), data.getLong("aliveTicks")));
+            data.putInt("deaths", data.getInt("deaths") + 1);
+            data.putLong("aliveTicks", 0);
+            data.putInt("zombieKills", 0);
         }
+        data.putLong("lastWorldTime", worldTime(player));
+        player.getPersistentData().put(TAG, data);
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -83,6 +123,7 @@ public class LazarusStatus {
         if (killer != null) {
             CompoundTag data = stats(killer);
             data.putInt("zombieKills", data.getInt("zombieKills") + 1);
+            data.putInt("totalKills", data.getInt("totalKills") + 1);
         }
     }
 
@@ -108,23 +149,30 @@ public class LazarusStatus {
             context.get().enqueueWork(() -> {
                 ServerPlayer player = context.get().getSender();
                 if (player == null) return;
+                accrue(player);
                 CompoundTag data = stats(player);
-                long day = worldDay(player);
-                CHANNEL.sendTo(new Snapshot(day, Math.max(0, day - data.getLong("startDay")),
-                        data.getInt("zombieKills")), player.connection.connection, NetworkDirection.PLAY_TO_CLIENT);
+                long survived = data.getLong("aliveTicks");
+                CHANNEL.sendTo(new Snapshot(worldDay(player), survived, data.getInt("zombieKills"),
+                        Math.max(survived, data.getLong("longestRun")), data.getInt("totalKills"),
+                        data.getInt("deaths")), player.connection.connection, NetworkDirection.PLAY_TO_CLIENT);
             });
             context.get().setPacketHandled(true);
         }
     }
 
-    public record Snapshot(long worldDay, long daysSurvived, int zombieKills) {
+    public record Snapshot(long worldDay, long survivalTicks, int zombieKills,
+                           long longestRunTicks, int totalKills, int deaths) {
         private static void encode(Snapshot packet, FriendlyByteBuf buf) {
             buf.writeVarLong(packet.worldDay);
-            buf.writeVarLong(packet.daysSurvived);
+            buf.writeVarLong(packet.survivalTicks);
             buf.writeVarInt(packet.zombieKills);
+            buf.writeVarLong(packet.longestRunTicks);
+            buf.writeVarInt(packet.totalKills);
+            buf.writeVarInt(packet.deaths);
         }
         private static Snapshot decode(FriendlyByteBuf buf) {
-            return new Snapshot(buf.readVarLong(), buf.readVarLong(), buf.readVarInt());
+            return new Snapshot(buf.readVarLong(), buf.readVarLong(), buf.readVarInt(),
+                    buf.readVarLong(), buf.readVarInt(), buf.readVarInt());
         }
         private static void handle(Snapshot packet, Supplier<NetworkEvent.Context> context) {
             context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
