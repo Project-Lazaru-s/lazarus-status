@@ -15,6 +15,9 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = LazarusStatus.ID, value = Dist.CLIENT)
 public final class ClientStatus {
+    private static final int PANEL_WIDTH = 256;
+    private static final int PANEL_HEIGHT = 202;
+    private static final int CONTENT_MARGIN = 20;
     private static final ResourceLocation ICON = new ResourceLocation(
             LazarusStatus.ID, "textures/gui/survivor_status.png");
     private static final ResourceLocation PANEL = new ResourceLocation(
@@ -54,8 +57,8 @@ public final class ClientStatus {
 
         @Override
         protected void init() {
-            int left = (width - 256) / 2;
-            int top = (height - 202) / 2;
+            int left = (width - PANEL_WIDTH) / 2;
+            int top = (height - PANEL_HEIGHT) / 2;
             addRenderableWidget(Button.builder(Component.literal("Back"), button -> returnToInventory())
                     .bounds(left + 202, top + 8, 42, 16).build());
         }
@@ -73,9 +76,9 @@ public final class ClientStatus {
         @Override
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
             renderBackground(graphics);
-            int left = (width - 256) / 2;
-            int top = (height - 202) / 2;
-            graphics.blit(PANEL, left, top, 0, 0, 256, 202, 256, 202);
+            int left = (width - PANEL_WIDTH) / 2;
+            int top = (height - PANEL_HEIGHT) / 2;
+            graphics.blit(PANEL, left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, PANEL_WIDTH, PANEL_HEIGHT);
             graphics.drawString(font, "LAZARUS / SURVIVOR RECORD", left + 16, top + 12, 0xFFE4D9C8);
 
             graphics.fill(left + 16, top + 31, left + 50, top + 65, 0xFF101714);
@@ -89,22 +92,22 @@ public final class ClientStatus {
             graphics.drawString(font, playerName, left + 60, top + 39, 0xFFF4ECE0);
             graphics.drawString(font, "WORLD DAY  " + stats.worldDay(), left + 60, top + 54, 0xFFB9A995);
 
-            graphics.fill(left + 17, top + 72, left + 239, top + 73, 0xFF7B473A);
-            graphics.drawString(font, "CURRENT RUN", left + 20, top + 78, 0xFFD4A185);
-            row(graphics, left, top + 96, "Days survived", StatusClock.display(stats.survivalTicks()));
-            row(graphics, left, top + 113, "Zombies killed", Integer.toString(stats.zombieKills()));
+            graphics.fill(left + 17, top + 69, left + 239, top + 70, 0xFF7B473A);
+            graphics.drawString(font, "CURRENT RUN", left + CONTENT_MARGIN, top + 75, 0xFFD4A185);
+            row(graphics, left, top + 91, "Days survived", StatusClock.display(stats.survivalTicks()));
+            row(graphics, left, top + 107, "Zombies killed", Integer.toString(stats.zombieKills()));
 
-            graphics.fill(left + 17, top + 133, left + 239, top + 134, 0xFF7B473A);
-            graphics.drawString(font, "PERSONAL RECORD", left + 20, top + 140, 0xFFD4A185);
-            row(graphics, left, top + 158, "Longest run", StatusClock.display(stats.longestRunTicks()));
-            row(graphics, left, top + 174, "Total zombies killed", Integer.toString(stats.totalKills()));
-            row(graphics, left, top + 190, "Deaths", Integer.toString(stats.deaths()));
+            graphics.fill(left + 17, top + 124, left + 239, top + 125, 0xFF7B473A);
+            graphics.drawString(font, "PERSONAL RECORD", left + CONTENT_MARGIN, top + 131, 0xFFD4A185);
+            row(graphics, left, top + 147, "Longest run", StatusClock.display(stats.longestRunTicks()));
+            row(graphics, left, top + 162, "Total zombies killed", Integer.toString(stats.totalKills()));
+            row(graphics, left, top + 177, "Deaths", Integer.toString(stats.deaths()));
             super.render(graphics, mouseX, mouseY, partialTick);
         }
 
         private void row(GuiGraphics graphics, int left, int y, String label, String value) {
-            graphics.drawString(font, label, left + 20, y, 0xFFD1CEC3);
-            graphics.drawString(font, value, left + 235 - font.width(value), y, 0xFFFFFFFF);
+            graphics.drawString(font, label, left + CONTENT_MARGIN, y, 0xFFD1CEC3);
+            graphics.drawString(font, value, left + PANEL_WIDTH - CONTENT_MARGIN - font.width(value), y, 0xFFFFFFFF);
         }
 
         @Override
